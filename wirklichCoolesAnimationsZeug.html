@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+	<style>
+	#animate {
+		position:absolute;
+		border:solid black 1px;
+		transform:rotate(90deg);
+		background:red;
+	}
+	button{
+		width:15%;
+		position: relative;
+		left: 43%;
+	}
+	#dragAndDrop{
+		display: inline-flex;
+		flex-direction: column;
+		flex-wrap: wrap;
+		align-content: stretch;
+		justify-content: space-evenly;
+		align-items: center;
+	}
+	#sourceContainer{
+		width:200px;
+		height:400px;
+		border:white solid 2px;
+	}
+	
+	#hud{	
+		display: inline-flex;
+		flex-direction:column;
+		justify-content:center;
+		display:none;
+		z-index: 10000;
+		width:100%;
+		height:100%;
+		background:black;
+		text-align:center;
+	}
+	#container {
+		width: 800px;
+		height:800px;
+		position: relative;
+		border:black solid 1px;
+	}
+    #safeZone{
+		width:400px;
+		height:400px;
+		top:200px;
+		left:200px;
+		border:black solid 1px;
+	}	
+	
+	.stones{
+		background-color: green;
+		border:1px solid black;
+		filter: drop-shadow(2px 10px 10px black);
+		width:50px;
+		height:50px;
+		top: 0px;
+		left: 0px;
+		z-index:10000;
+		position:absolute;
+	}
+	.powerUp{
+		background: green;
+		text-align:center;
+	}
+	img{
+		width:100px;
+	}
+	.stone img,
+	.powerUp{
+		width:50px;
+		height:50px;
+	}
+	.powerUp,
+	.stone,
+	#hud,
+	#animate,
+	#safeZone,
+	#loseScreen{
+		position:absolute;
+	}
+	.img{
+		transform: rotate(180deg);
+	}
+	</style>
+	<body>	
+		<script>
+			let newCar;
+			let gameObjects = [];
+			class game {
+				constructor(stones, img) {
+					this.score = 0;
+					this.carImg = img;
+					this.gameContainer = this.createGame();
+				}
+				createGame() {
+					const gameContainer = document.createElement('div');
+					gameContainer.setAttribute('id', 'container');
+					document.body.appendChild(gameContainer);
+					gameContainer.innerHTML = '<div id="safeZone"></div>';
+					for (let i = 0; i <= 5; i++) {
+						const size = Math.floor(Math.random() * 50) + 50;
+						const posX = Math.floor(Math.random() * 700);
+						const posY = Math.floor(Math.random() * 700);
+						gameObjects[i] = new stone(posX, posY, size, size);
+					}
+					newCar = new car();
+					return gameContainer;
+				}
+				runGame() {
+					newCar.moveCar();
+					gameObjects.forEach((obj) => {
+						obj.moveStone();
+					});
+				}
+
+				saveHighscore() {
+					if (localStorage.getItem('highscore') < this.score) {
+						localStorage.setItem('highscore', this.score);
+					}
+				}
+
+				time() {
+					this.score++;
+					document.querySelector('.powerUp').innerHTML = this.score + '<br>' + lang.highscore + ' ' + localStorage.getItem('highscore');
+				}
+			}
+
+			class stone {
+				constructor(x, y, height, width) {
+					this.moveX;
+					this.moveY;
+					this.x = x;
+					this.y = y;
+					this.speed = 0.125;
+					this.height = height;
+					this.width = width;
+					this.mass = height * width / 50;
+					this.stone = document.createElement('div');
+					this.isColliding = false;
+					this.createStone();
+				}
+				createStone() {
+					this.stone.style.height = this.height + 'px';
+					this.stone.style.width = this.width + 'px';
+					this.stone.classList.add('stones');
+					document.body.appendChild(this.stone);
+					this.setRandomStonePath();
+				}
+
+				setRandomStonePath() {
+					const rotation = Math.floor(Math.random() * 360);
+					this.moveX = Math.ceil(Math.random() * 3);
+					this.moveY = Math.ceil(Math.random() * 3);
+					const newY = this.moveY * Math.cos(rotation) + this.moveX * Math.sin(rotation);
+					const newX = this.moveX * Math.cos(rotation) - this.moveY * Math.sin(rotation);
+					this.moveX = newX;
+					this.moveY = newY;
+				}
+				moveStone() {
+					if (this.x < 0 || this.x > (800 - this.width)) {
+						this.moveX = -this.moveX;
+					}
+					if (this.y < 0 || this.y > (800 - this.width)) {
+						this.moveY = -this.moveY;
+					}
+
+					this.y += this.moveY * this.speed;
+					this.x += this.moveX * this.speed;
+					this.stone.style.transform = "translate(" + this.x + "px ," + this.y + "px)";
+					stonesColide();
+				}
+			}
+
+			function stonesColide() {
+				let a;
+				let b;
+				for (let i = 0; i < gameObjects.length; i++) {
+					a = gameObjects[i];
+					for (let j = i + 1; j < gameObjects.length; j++) {
+						b = gameObjects[j];
+						if (isCollide(a, b)) {
+							getColisionVector(a, b);
+							const hex = "#" + Math.floor(Math.random() * 16777215).toString(16); ;
+							a.stone.style.background = hex;
+							b.stone.style.background = hex;
+						}
+					}
+				}
+			}
+			function getColisionVector(a, b) {
+				const vCollision = {
+					x: b.x - a.x,
+					y: b.y - a.y
+				};
+				const distance = Math.sqrt((vCollision.x) * (vCollision.x) + (vCollision.y) * (vCollision.y));
+				const vCollisionNorm = {
+					x: vCollision.x / distance,
+					y: vCollision.y / distance
+				};
+				const vRelativeVelocity = {
+					x: a.moveX - b.moveX,
+					y: a.moveY - b.moveY
+				};
+				const speed = vRelativeVelocity.x * vCollisionNorm.x + vRelativeVelocity.y * vCollisionNorm.y;
+				if (speed > 0) {
+					let impulse = 2 * speed / (a.mass + b.mass);
+					a.moveX -= (impulse * b.mass * vCollisionNorm.x);
+					a.moveY -= (impulse * b.mass * vCollisionNorm.y);
+					b.moveX += (impulse * a.mass * vCollisionNorm.x);
+					b.moveY += (impulse * a.mass * vCollisionNorm.y);
+				}
+			}
+			function isCollide(a, b) {
+				return !(
+					((a.y + a.height) < (b.y)) ||
+					(a.y > (b.y + b.height)) ||
+					((a.x + a.width) < b.x) ||
+					(a.x > (b.x + b.width)));
+			}
+
+			class car {
+				constructor(img) {
+					this.moveX = 0;
+					this.moveY = 1;
+					this.x = 200;
+					this.y = 200;
+					this.speed = 0.125;
+					this.rota = 90;
+					this.width = 50;
+					this.height = 50;
+					this.car = this.createCar();
+					this.img = img;
+					this.mass = 200;
+					this.maxSpeed = 5;
+					this.ya = 0.75;
+					this.hp = 5;
+				}
+
+				createCar() {
+					const car = document.createElement('div');
+					car.setAttribute('id', 'animate');
+					document.body.appendChild(car);
+					car.style.height = this.height + 'px';
+					car.style.width = this.width + 'px';
+					window.addEventListener('keydown', (e) => {
+						if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+							let direction = e.key === 'ArrowRight' ? 90 : -90;
+							this.turnCar(direction);
+						}
+						if (e.key === 'ArrowUp' && this.speed < this.maxSpeed
+						     || e.key === 'ArrowDown' && this.speed > -this.maxSpeed / 2) {
+						    this.speed += e.key === 'ArrowUp' && this.speed < this.maxSpeed ? this.ya : -this.ya;
+						}
+					});
+					car.innerHTML = '<br/><br/>>>>>>>>>>>';
+					car.style.left = this.x + 'px';
+					car.style.top = this.y + 'px';
+
+					return car;
+				}
+
+				turnCar(direction) {
+					this.rota += direction;
+					let rotation = direction * (Math.PI / 180);
+					const newX = this.moveX * Math.cos(rotation) - this.moveY * Math.sin(rotation);
+					const newY = this.moveY * Math.cos(rotation) + this.moveX * Math.sin(rotation);
+					this.moveX = newX;
+					this.moveY = newY;
+					let animati = this.car.animate(
+							[{
+									transform: "rotate(" + this.rota + "deg)"
+								}
+							], {
+							fill: "forwards",
+							duration: 200,
+							easing: "ease-in",
+						});
+				}
+
+				moveCar() {
+					this.y += this.moveY * this.speed;
+					this.x += this.moveX * this.speed;
+					if (this.x < 0 || this.x > 750) {
+						this.x = this.x < 0 ? 750 : 0;
+					}
+					if (this.y < 0 || this.y > 750) {
+						this.y = this.y < 0 ? 750 : 0;
+					}
+					this.car.style.left = this.x + 'px';
+					this.car.style.top = this.y + 'px';
+					for (let i = 0; i < gameObjects.length; i++) {
+						if (isCollide(this, gameObjects[i]) && this.speed !== 0) {							
+							this.speed = 0;
+							this.hp -= gameObjects[i].mass / 100 % 7;							
+							if (this.hp <= 0) {
+								reset();
+							}
+						}
+					}
+				}
+			}
+			
+			function reset() {
+				console.log('kaput')
+				document.body.innerHTML = '';
+				newGame = new game();
+			}
+			let newGame = new game();
+			setInterval(() => {
+				newGame.runGame()
+			}, 0.1);
+		</script>
+	</body>
+</html>
